@@ -1,0 +1,38 @@
+name: app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: cr.yandex/${{ secrets.YC_REGISTRY_ID }}/final-project-app
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: короткий sha
+        id: vars
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: вход в реестр
+        env:
+          YC_SA_KEY_JSON: ${{ secrets.YC_SA_KEY_JSON }}
+        run: printf '%s' "$YC_SA_KEY_JSON" | docker login --username json_key --password-stdin cr.yandex
+
+      - name: сборка
+        run: |
+          docker build \
+            --build-arg APP_VERSION=sha-${{ steps.vars.outputs.sha }} \
+            --build-arg BUILD_DATE="$(date -u +%F)" \
+            -t "$IMAGE:sha-${{ steps.vars.outputs.sha }}" \
+            -t "$IMAGE:latest" .
+
+      - name: push
+        run: |
+          docker push "$IMAGE:sha-${{ steps.vars.outputs.sha }}"
+          docker push "$IMAGE:latest"
